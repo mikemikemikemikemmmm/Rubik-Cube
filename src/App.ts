@@ -1,7 +1,7 @@
 import * as  TH from 'three'
 import { Vector2 } from 'three';
 import { ArcballControls } from 'three/examples/jsm/controls/ArcballControls';
-import { BOX_WIDTH, cubeColors, insideCubeRatio, LEAST_VECTOR_LENGTH_TO_ROTATE } from './const'
+import { animateTime, BOX_WIDTH, cubeColors, insideCubeRatio, LEAST_VECTOR_LENGTH_TO_ROTATE } from './const'
 type TDirection = "clockwise" | 'counterclockwise'
 interface IDoRotate {
     axis: TAxis,
@@ -20,18 +20,6 @@ interface ITempContainerForMouseDown {
     positionOfTouchedCube?: IPosition
     mouseVectorLineObj?: TH.Line<TH.BufferGeometry, TH.LineBasicMaterial>
 }
-class RotateClip {
-    static angle() {
-        return Math.PI / 2
-    }
-    static byYAxis() {
-        const axis = new TH.Vector3(0, 1, 0)
-        const position = new TH.Vector3().applyAxisAngle(axis, this.angle())
-        const rotate = new TH.Quaternion().setFromAxisAngle(axis, this.angle())
-        const positionKF = new TH.VectorKeyframeTrack('.position', [0, 1], [])
-        // const rotateKF = 
-    }
-}
 class MouseEventManager {
     raycaster: TH.Raycaster
     controls!: ArcballControls
@@ -40,7 +28,7 @@ class MouseEventManager {
     render: () => void
     tempContainerForMouseDown!: ITempContainerForMouseDown
     constructor(
-        private app: App) {
+        private app: App, private isAnimating: () => boolean) {
         this.mouseXY = { x: 0, y: 0 }
         this.tempContainerForMouseDown = {}
         this.domEl = this.app.renderer.domElement
@@ -52,7 +40,7 @@ class MouseEventManager {
     initControl() {
         this.controls = new ArcballControls(this.app.camera, this.domEl, this.app.scene)
         this.controls.addEventListener('change', this.render)
-        this.controls.enabled = false
+        this.stopControl()
         this.controls.setGizmosVisible(false)
     }
     getIntersectObjects(mouseCoord: IMouseCoord) {
@@ -60,44 +48,18 @@ class MouseEventManager {
         const objectInScene = this.app.scene.children
         return this.raycaster.intersectObjects(objectInScene, false);
     }
-    // createMouseVectorLineObj(startMouseCoord: IMouseCoord) {
-    //     const points = [
-    //         new TH.Vector2(startMouseCoord.x, startMouseCoord.y),
-    //         new TH.Vector2(startMouseCoord.x, startMouseCoord.y)]
-    //     const geometry = new TH.BufferGeometry().setFromPoints(points)
-    //     const material = new TH.LineBasicMaterial({ linewidth: 511, color: new TH.Color(0xffff12) });
-    //     const line = new TH.Line(geometry, material)
-    //     this.app.scene.add(line)
-    //     this.render()
-    //     // console.log(124)
-    //     return line
-    // }
-    // setLinePoints(e: MouseEvent) {
-    //     const start = this.tempContainerForMouseDown.mouseStartPosition as IMouseCoord
-    //     const end = { x: this.mouseXY.x, y: this.mouseXY.y }
-    //     const line = this.tempContainerForMouseDown.mouseVectorLineObj as TH.Line<TH.BufferGeometry, TH.LineBasicMaterial>
-    //     line.geometry.setFromPoints([new TH.Vector2(start.x, start.y), new TH.Vector2(end.x, end.y)])
-    //     this.render()
-    // }
-    onMouseDown(e: MouseEvent) {
+    onMouseDown() {
         const mouseCoordInScene = { x: this.mouseXY.x, y: this.mouseXY.y }
         this.tempContainerForMouseDown.mouseStartPosition = mouseCoordInScene
-        // this.tempContainerForMouseDown.mouseVectorLineObj = this.createMouseVectorLineObj(mouseCoordInScene)
-        // const self = this
-        // const bindSetLinePoints = this.setLinePoints.bind(this)
-        // this.domEl.addEventListener('mousemove', bindSetLinePoints)
-        // this.domEl.addEventListener('mouseup', () =>
-        //     self.domEl.removeEventListener('mousemove', bindSetLinePoints), { once: true })
-        // this.domEl.addEventListener('mouseup', () =>
-        //     this.tempContainerForMouseDown.mouseVectorLineObj?.removeFromParent()
-        //     , { once: true })
-
         const intersectObjects = this.getIntersectObjects(mouseCoordInScene)
-        if (intersectObjects.length === 0) {  // outside cube
-            this.controls.enabled = true
+        if (intersectObjects.length === 0 && !this.isAnimating()) {  // outside cube
+            this.startControl()
             return
         }
-        const clickedCube = intersectObjects[0].object
+        const clickedCube = intersectObjects[0]?.object
+        if (!intersectObjects[0] || !clickedCube) {
+            return
+        }
         const cubePositionType = Cube.getCubePositionType(clickedCube.position)
         if (cubePositionType === 'center') {
             return
@@ -105,19 +67,13 @@ class MouseEventManager {
         const axisOfTouchedFace = Cube.getAxisByPointPosition(intersectObjects[0].point)  //which face clicked, x , y, z
         this.tempContainerForMouseDown.axisOfTouchedFace = axisOfTouchedFace
         this.tempContainerForMouseDown.positionOfTouchedCube = clickedCube.position
-        // this.domEl.addEventListener('mousemove', bindDoCubeRotateWhenMouseUp)
-        // this.domEl.addEventListener
         const bindDoCubeRotateWhenMouseUp = this.doCubeRotateWhenMouseUp.bind(this)
         this.domEl.addEventListener('mouseup', bindDoCubeRotateWhenMouseUp, { once: true })
     }
     doCubeRotateWhenMouseUp() {
         const mouseCoordInScene = { x: this.mouseXY.x, y: this.mouseXY.y }
-        const { mouseTrackvector, mouseTrackvectorLength } =
+        const { mouseTrackvector } =
             this.getMouseTrackVector(mouseCoordInScene, this.tempContainerForMouseDown.mouseStartPosition as IPosition)
-        // if (mouseTrackvectorLength < LEAST_VECTOR_LENGTH_TO_ROTATE) {
-        //     console.log('not pass least vector length')
-        //     return
-        // }
         const rotateData = this.getCubeRotateData(mouseTrackvector)
         this.app.cube.doRotate(rotateData)
     }
@@ -162,40 +118,6 @@ class MouseEventManager {
             direction
         }
     }
-    // getAxisToRotate(axisVector: {
-    //     x: TH.Vector2;
-    //     y: TH.Vector2;
-    //     z: TH.Vector2;
-    // }, mouseTrackVector: TH.Vector2, excludeAxis: TAxis) {
-    //     const dotData = [
-    //         { axis: 'x', dotAbs: 0, abs: 0 ,sin:0},
-    //         { axis: 'y', dot: 0, abs: 0 ,sin:0},
-    //         { axis: 'z', dot: 0, abs: 0 ,sin:0}
-    //     ] as { axis: TAxis, dot: number, abs: number ,sin:number}[]
-    //     const init = dotData
-    //         .map(d => {
-    //             const _d = d
-    //             _d.dot = mouseTrackVector.dot(axisVector[d.axis])
-    //             _d.abs = Math.abs(d.dot)
-    //             return _d
-    //         })
-    //     console.log('rotateData',init.map)
-    //     const filterExcludeAxis = init.filter(d => d.axis !== excludeAxis) //axis of clicked face not rotate
-    //     const sortAbs = filterExcludeAxis.sort((d1, d2) => d1.abs - d2.abs) // find min abs of dot product => the most vertical axis
-    //     const target = sortAbs[0]
-    //     const decideDirection = (_target: typeof target) => {
-    //         const _direction = _target.dot < 0 ? 'clockwise' : 'counterclockwise'
-    //         if (_target.axis === 'z') {
-    //             _direction === 'clockwise' ? 'counterclockwise' : 'clockwise'
-    //         }
-    //         return _direction
-    //     }
-    //     return {
-    //         axis: target.axis,
-    //         direction: decideDirection(target)
-    //     }
-    // }
-
     getAxisLineVectorToScreenVector(camera: TH.PerspectiveCamera) {
         const _fn = (vector: [number, number, number]) => {
             const v3 = new TH.Vector3(...vector).project(camera);
@@ -221,6 +143,9 @@ class MouseEventManager {
     stopControl() {
         this.controls.enabled = false
     }
+    startControl() {
+        this.controls.enabled = true
+    }
     setMousePosition(e: MouseEvent) {
         this.mouseXY = {
             x: (e.clientX / window.innerWidth) * 2 - 1,
@@ -239,7 +164,13 @@ class MouseEventManager {
 class Cube {
     insideCubeColor: TH.MeshBasicMaterial[]
     group: TH.Group
-    constructor(private scene: THREE.Scene, private render: () => void) {
+    animateCubeGroup?: TH.Group
+    constructor(
+        private scene: THREE.Scene,
+        private setMixer: (mixer: TH.AnimationMixer) => void,
+        private cleanMixer: () => void,
+        private setIsAnimating: (status: boolean) => void,
+    ) {
         this.group = new TH.Group()
         this.insideCubeColor = cubeColors.map(color => new TH.MeshBasicMaterial({ color }))
         this.initBox()
@@ -281,24 +212,19 @@ class Cube {
         cube.add(insideCube)
         return cube
     }
-    doRotate(doRotateData: IDoRotate) { //TODO
-        const targetCubeArray = this.getCubeList(doRotateData.axis, doRotateData.axisPosition)
-        this.doRotateByCubeArray(targetCubeArray, doRotateData.axis, doRotateData.direction) //step2
-        this.render()
-    }
-    doRotateAnimation(cubeGroup: TH.Object3D<TH.Event>[], axis: TAxis, direction: TDirection) {
-        // const tracks = new TH.QuaternionKeyframeTrack('rotate2')
-        const clip = new TH.AnimationClip('rotate', 3000,)
-
+    doRotate(doRotateData: IDoRotate) {
+        this.setIsAnimating(true)
+        const targetCubeGroup = this.getCubeGroup(doRotateData.axis, doRotateData.axisPosition)
+        this.animateRotate(targetCubeGroup, doRotateData.axis, doRotateData.direction)
     }
     fixPosition(position: IPosition) {
         const fixedPosition = [position.x, position.y, position.z]
             .map(axis => {
-                if (axis < 0.000001 && axis > -0.000001) {
-                    return 0
-                } else if (axis > 0.0999999 && axis < 1.001111) {
+                if (0.5 < axis && axis <= 1.5) {
                     return 1
-                } else if (axis < -0.0999999 && axis > -1.001111) {
+                } else if (-0.5 < axis && axis <= 0.5) {
+                    return 0
+                } else if (-1.5 <= axis && axis <= -0.5) {
                     return -1
                 }
             })
@@ -306,46 +232,77 @@ class Cube {
             x: fixedPosition[0], y: fixedPosition[1], z: fixedPosition[2]
         } as IPosition
     }
-    doRotateByCubeArray(cubeGroup: TH.Object3D<TH.Event>[], axis: TAxis, direction: TDirection) {
-        const deg = (Math.PI / 2) * (direction === 'clockwise' ? -1 : 1)
-        switch (axis) {
-            case 'z':
-                cubeGroup.forEach(c => {
-                    c.applyMatrix4(new TH.Matrix4().makeRotationAxis(new TH.Vector3(0, 0, 1), deg))
-                    const newPosition = this.fixPosition(c.position)
-                    c.position.x = newPosition.x
-                    c.position.y = newPosition.y
-                    c.position.z = newPosition.z
-                })
-                break;
-            case 'y':
-                cubeGroup.forEach(c => {
-                    c.applyMatrix4(new TH.Matrix4().makeRotationAxis(new TH.Vector3(0, 1, 0), deg))
-                    const newPosition = this.fixPosition(c.position)
-                    c.position.x = newPosition.x
-                    c.position.y = newPosition.y
-                    c.position.z = newPosition.z
-                })
-                break;
-            case 'x':
-                cubeGroup.forEach(c => {
-                    c.applyMatrix4(new TH.Matrix4().makeRotationAxis(new TH.Vector3(1, 0, 0), deg))
-                    const newPosition = this.fixPosition(c.position)
-                    c.position.x = newPosition.x
-                    c.position.y = newPosition.y
-                    c.position.z = newPosition.z
-                })
-                break;
-        }
+    getFixedQuaternion(quat: TH.Quaternion) {
+        const clone = quat.clone()
+        const fixed = [clone.x, clone.y, clone.z, clone.w]
+            .map(q => {
+                if (0.8 < q && q <= 1) {
+                    return 1
+                } else if (0.6 <= q && q <= 0.8) {
+                    return 0.707
+                } else if (0.2 < q && q <= 0.6) {
+                    return 0.5
+                } else if (-0.2 < q && q <= 0.2) {
+                    return 0
+                } else if (-0.6 < q && q <= -0.2) {
+                    return -0.5
+                } else if (-0.8 < q && q <= -0.6) {
+                    return -0.707
+                } else if (-1 <= q && q <= -0.8) {
+                    return -1
+                }
+            })
+        return new TH.Quaternion(fixed[0], fixed[1], fixed[2], fixed[3])
     }
-    getCubeList(axis: TAxis, axisCoord: number) {
-        const array = [] as TH.Object3D<TH.Event>[]
-        this.scene.children.forEach(obj => {
-            if (obj.position[axis] === axisCoord && obj.name === 'cube') {
-                array.push(obj)
+    animateRotate(cubeGroup: TH.Group, axis: TAxis, direction: TDirection) {
+        const deg = (Math.PI / 2) * (direction === 'clockwise' ? -1 : 1)
+        const mixer = new TH.AnimationMixer(cubeGroup)
+        const time = [0, animateTime]
+        const rotateVector = axis === 'x' ? new TH.Vector3(1, 0, 0) : axis === 'y' ? new TH.Vector3(0, 1, 0) : new TH.Vector3(0, 0, 1)
+        const rotateQ = new TH.Quaternion().setFromAxisAngle(rotateVector, deg)
+        const originQ = cubeGroup.quaternion
+        const rotateKF = new TH.KeyframeTrack('.quaternion', time, [originQ.x, originQ.y, originQ.z, originQ.w, rotateQ.x, rotateQ.y, rotateQ.z, rotateQ.w])
+        const clip = new TH.AnimationClip('rotateGroup', animateTime, [rotateKF])
+        const action = mixer.clipAction(clip)
+        this.setMixer(mixer)
+        const whenFinished = () => {
+            const arr = [] as TH.Object3D<TH.Event>[]
+            cubeGroup.children.forEach(c => {
+                const wp = c.getWorldPosition(new TH.Vector3())
+                const { x, y, z } = this.fixPosition(wp)
+                c.position.setX(x)
+                c.position.setY(y)
+                c.position.setZ(z)
+                const wq = c.getWorldQuaternion(new TH.Quaternion())
+                const fixedQ = this.getFixedQuaternion(wq)
+                c.quaternion.x = fixedQ.x
+                c.quaternion.y = fixedQ.y
+                c.quaternion.z = fixedQ.z
+                c.quaternion.w = fixedQ.w
+                arr.push(c)
+            })
+            this.scene.add(...arr)
+            this.scene.remove(cubeGroup)
+            mixer.removeEventListener('finished', whenFinished)
+            this.setIsAnimating(false)
+            this.cleanMixer() //TODO
+        }
+        mixer.addEventListener('finished', whenFinished)
+        action.setLoop(TH.LoopOnce, 1)
+        action.play()
+    }
+    getCubeGroup(axis: TAxis, axisCoord: number) {
+        const group = new TH.Group()
+        group.name = 'cubeGroup'
+        this.scene.add(group)
+        const arr = [] as TH.Object3D[]
+        this.scene.children.forEach(item => {
+            if (item.position[axis] === axisCoord && item.name === 'cube') {
+                arr.push(item)
             }
         })
-        return array
+        arr.forEach(item => group.add(item))
+        return group
     }
     initBox() {
         for (let z = 0; z < 3; z++) {
@@ -362,7 +319,7 @@ class Cube {
         }
     }
 }
-class AxisLine {
+class AxisLine {  // for test
     xLine: TH.Line
     yLine: TH.Line
     zLine: TH.Line
@@ -403,27 +360,56 @@ export class App {
     renderer: TH.WebGLRenderer;
     cube: Cube
     axisLine?: AxisLine
+    clock: TH.Clock
+    isAnimating: boolean
     mouseEventManager: MouseEventManager
+    mixer?: TH.AnimationMixer
     constructor() {
+        this.isAnimating = false
+        this.clock = new TH.Clock()
         this.renderer = this.setInitRenderer()
         this.scene = this.setInitScene()
         this.camera = this.setInitCamera()
         this.appendDOM(this.renderer.domElement)
+        this.mouseEventManager = this.setInitMouseEventManager()
         this.cube = this.setInitCube()
-        this.mouseEventManager = new MouseEventManager(this)
         // this.axisLine = new AxisLine(this.scene)
         this.animate()
     }
+    setInitMouseEventManager() {
+        const bindIsAnimating = this.getIsAnimating.bind(this)
+        const instance = new MouseEventManager(this, bindIsAnimating)
+        return instance
+    }
+    setMixer(mixer: TH.AnimationMixer) {
+        this.mixer = mixer
+    }
+    cleanMixer() {
+    }
+    setIsAnimating(status: boolean) {
+        this.isAnimating = status
+    }
+    getIsAnimating() {
+        return this.isAnimating
+    }
     animate() {
         const self = this
-        requestAnimationFrame(self.animate);
+        requestAnimationFrame(() => {
+            self.animate()
+        });
         self.render()
+        if (self.mixer) {
+            self.mixer.update(self.clock.getDelta())
+        }
     }
     render() {
         this.renderer.render(this.scene, this.camera);
     }
     setInitCube() {
-        return new Cube(this.scene, this.render.bind(this))
+        const bindSetMixer = this.setMixer.bind(this)
+        const bindCleanMixer = this.cleanMixer.bind(this)
+        const bindSetIsAnimating = this.setIsAnimating.bind(this)
+        return new Cube(this.scene, bindSetMixer, bindCleanMixer, bindSetIsAnimating)
     }
     setInitScene() {
         return new TH.Scene()
@@ -442,9 +428,15 @@ export class App {
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setClearColor(new TH.Color(0xffffff))
         renderer.setSize(window.innerWidth, window.innerHeight);
+        this.listenResize()
         return renderer
     }
     appendDOM(domElement: HTMLCanvasElement) {
         document.body.appendChild(domElement);
+    }
+    listenResize() {
+        window.addEventListener('resize', () => {
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+        })
     }
 }
