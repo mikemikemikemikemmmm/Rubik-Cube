@@ -28,7 +28,7 @@ class MouseEventManager {
     render: () => void
     tempContainerForMouseDown!: ITempContainerForMouseDown
     constructor(
-        private app: App, private isAnimating: () => boolean) {
+        private app: App, private getIsAnimating: () => boolean) {
         this.mouseXY = { x: 0, y: 0 }
         this.tempContainerForMouseDown = {}
         this.domEl = this.app.renderer.domElement
@@ -49,10 +49,13 @@ class MouseEventManager {
         return this.raycaster.intersectObjects(objectInScene, false);
     }
     onMouseDown() {
+        if (this.getIsAnimating()) {
+            return
+        }
         const mouseCoordInScene = { x: this.mouseXY.x, y: this.mouseXY.y }
         this.tempContainerForMouseDown.mouseStartPosition = mouseCoordInScene
         const intersectObjects = this.getIntersectObjects(mouseCoordInScene)
-        if (intersectObjects.length === 0 && !this.isAnimating()) {  // outside cube
+        if (intersectObjects.length === 0) {  // outside cube
             this.startControl()
             return
         }
@@ -215,6 +218,10 @@ class Cube {
     doRotate(doRotateData: IDoRotate) {
         this.setIsAnimating(true)
         const targetCubeGroup = this.getCubeGroup(doRotateData.axis, doRotateData.axisPosition)
+        if (targetCubeGroup === 'error') {
+            this.setIsAnimating(false)
+            return
+        }
         this.animateRotate(targetCubeGroup, doRotateData.axis, doRotateData.direction)
     }
     fixPosition(position: IPosition) {
@@ -301,6 +308,9 @@ class Cube {
                 arr.push(item)
             }
         })
+        if (arr.length !== 9) {
+            return 'error'
+        }
         arr.forEach(item => group.add(item))
         return group
     }
