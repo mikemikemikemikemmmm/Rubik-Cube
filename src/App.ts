@@ -39,6 +39,7 @@ class MouseEventManager {
     }
     initControl() {
         this.controls = new ArcballControls(this.app.camera, this.domEl, this.app.scene)
+        this.controls.enableZoom = false
         this.controls.addEventListener('change', this.render)
         this.stopControl()
         this.controls.setGizmosVisible(false)
@@ -72,7 +73,7 @@ class MouseEventManager {
         this.tempContainerForMouseDown.positionOfTouchedCube = clickedCube.position
         const bindDoCubeRotateWhenMouseUp = this.doCubeRotateWhenMouseUp.bind(this)
         if (isMobile) {
-            this.domEl.addEventListener('mouseup', bindDoCubeRotateWhenMouseUp, { once: true })
+            this.domEl.addEventListener('touchend', bindDoCubeRotateWhenMouseUp, { once: true })
         } else {
             this.domEl.addEventListener('mouseup', bindDoCubeRotateWhenMouseUp, { once: true })
         }
@@ -125,6 +126,7 @@ class MouseEventManager {
             direction
         }
     }
+    //TODO
     getAxisLineVectorToScreenVector(camera: TH.PerspectiveCamera) {
         const _fn = (vector: [number, number, number]) => {
             const v3 = new TH.Vector3(...vector).project(camera);
@@ -159,14 +161,11 @@ class MouseEventManager {
             y: - (e.clientY / window.innerHeight) * 2 + 1,
         }
     }
-    onTouchDown(e: TouchEvent) {
-        e.preventDefault()
-        if (e.touches.length === 1) {
-            this.setMobileTouchPosition(e)
-            this.onMouseDown()
-        }
+    onMobileTouchDown(e: TouchEvent) {
+        this.onMobileMoveTouch(e)
+        this.onMouseDown()
     }
-    setMobileTouchPosition(e: TouchEvent) {
+    onMobileMoveTouch(e: TouchEvent) {
         e.preventDefault();
         if (e.touches.length === 1) {
             const touch = e.touches[0]; // 取得第一個觸點
@@ -181,10 +180,10 @@ class MouseEventManager {
         const bindStopControl = this.stopControl.bind(this)
         const bindSetMousePosition = this.setMousePosition.bind(this)
 
-        const bindSetMobileTouchDown = this.onTouchDown.bind(this)
-        const bindSetMobileTouchPosition = this.setMobileTouchPosition.bind(this)
+        const bindSetMobileTouchDown = this.onMobileTouchDown.bind(this)
+        const bindSetMobileTouchPosition = this.onMobileMoveTouch.bind(this)
         if (isMobile) {
-            this.domEl.addEventListener('touchstart',  bindSetMobileTouchDown , {capture:false,passive:false});
+            this.domEl.addEventListener('touchstart', bindSetMobileTouchDown, { capture: false, passive: false });
             this.domEl.addEventListener('touchend', bindStopControl, false);
             this.domEl.addEventListener('touchmove', bindSetMobileTouchPosition, false);
         } else {
@@ -388,7 +387,7 @@ class AxisLine {  // for test
                 break;
         }
         const geometry = new TH.BufferGeometry().setFromPoints(points)
-        const material = new TH.LineBasicMaterial({ linewidth: 1, color });
+        const material = new TH.LineBasicMaterial({ linewidth: 1, color,opacity:0 });
         const line = new TH.Line(geometry, material)
         this.scene.add(line)
         return line
@@ -456,9 +455,9 @@ export class App {
     }
     setInitCamera() {
         const camera = new TH.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 1000);
-        camera.position.z = 5
-        camera.position.x = 5
-        camera.position.y = 5
+        camera.position.z = 6
+        camera.position.x = 6
+        camera.position.y = 6
         camera.lookAt(this.scene.position)
         camera.updateMatrixWorld();
         return camera
