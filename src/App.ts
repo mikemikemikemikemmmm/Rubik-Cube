@@ -160,16 +160,15 @@ class MouseEventManager {
         }
     }
     onTouchDown(e: TouchEvent) {
+        e.preventDefault()
         if (e.touches.length === 1) {
             this.setMobileTouchPosition(e)
             this.onMouseDown()
-        }else{
-            e.preventDefault()
         }
     }
     setMobileTouchPosition(e: TouchEvent) {
         e.preventDefault();
-        if (e.touches && e.touches.length > 0) {
+        if (e.touches.length === 1) {
             const touch = e.touches[0]; // 取得第一個觸點
             this.mouseXY = {
                 x: (touch.clientX / window.innerWidth) * 2 - 1,
