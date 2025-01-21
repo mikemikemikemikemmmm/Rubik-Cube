@@ -71,7 +71,11 @@ class MouseEventManager {
         this.tempContainerForMouseDown.axisOfTouchedFace = axisOfTouchedFace
         this.tempContainerForMouseDown.positionOfTouchedCube = clickedCube.position
         const bindDoCubeRotateWhenMouseUp = this.doCubeRotateWhenMouseUp.bind(this)
-        this.domEl.addEventListener('mouseup', bindDoCubeRotateWhenMouseUp, { once: true })
+        if (isMobile) {
+            this.domEl.addEventListener('touchend', bindDoCubeRotateWhenMouseUp, { once: true })
+        } else {
+            this.domEl.addEventListener('mouseup', bindDoCubeRotateWhenMouseUp, { once: true })
+        }
     }
     doCubeRotateWhenMouseUp() {
         const mouseCoordInScene = { x: this.mouseXY.x, y: this.mouseXY.y }
@@ -155,6 +159,10 @@ class MouseEventManager {
             y: - (e.clientY / window.innerHeight) * 2 + 1,
         }
     }
+    onTouchDown(e: TouchEvent) {
+        this.setMobileTouchPosition(e)
+        this.onMouseDown()
+    }
     setMobileTouchPosition(e: TouchEvent) {
         e.preventDefault();
         if (e.touches && e.touches.length > 0) {
@@ -165,26 +173,19 @@ class MouseEventManager {
             };
         }
     }
-    setMobileTouchPositions(e: TouchEvent) {
-        if (e.touches && e.touches.length > 0) {
-            const touch = e.touches[0]; // 取得第一個觸點
-            this.mouseXY = {
-                x: (touch.clientX / window.innerWidth) * 2 - 1,
-                y: -(touch.clientY / window.innerHeight) * 2 + 1,
-            };
-        }
-    }
     initEventListener() {
-        const bindDown = this.onMouseDown.bind(this)
+        const bindMouseDown = this.onMouseDown.bind(this)
         const bindStopControl = this.stopControl.bind(this)
         const bindSetMousePosition = this.setMousePosition.bind(this)
+
+        const bindSetMobileTouchDown = this.onTouchDown.bind(this)
         const bindSetMobileTouchPosition = this.setMobileTouchPosition.bind(this)
-        if (isMobile()) {
-            this.domEl.addEventListener('touchstart', bindDown, false);
+        if (isMobile) {
+            this.domEl.addEventListener('touchstart', bindSetMobileTouchDown, false);
             this.domEl.addEventListener('touchend', bindStopControl, false);
             this.domEl.addEventListener('touchmove', bindSetMobileTouchPosition, false);
         } else {
-            this.domEl.addEventListener('mousedown', bindDown, false);
+            this.domEl.addEventListener('mousedown', bindMouseDown, false);
             this.domEl.addEventListener('mouseup', bindStopControl, false)
             this.domEl.addEventListener('mousemove', bindSetMousePosition, false)
         }
