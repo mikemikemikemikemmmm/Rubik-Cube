@@ -1,3 +1,5 @@
+import MobileDetect from "mobile-detect"
+
 export const BOX_WIDTH = 1
 export const BOX_INTERVAL = 0.02
 export const cameraPosition = {
@@ -10,7 +12,6 @@ export const cubeColors = [
 export const insideCubeRatio = 0.95
 export const animateTime = 0.2
 export const isMobile = (() => {
-    //@ts-ignore
-    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-    return /android|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+    const md = new MobileDetect(window.navigator.userAgent);
+    return md.mobile() !== null
 })()
