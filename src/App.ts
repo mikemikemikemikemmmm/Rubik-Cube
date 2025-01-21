@@ -72,7 +72,7 @@ class MouseEventManager {
         this.tempContainerForMouseDown.positionOfTouchedCube = clickedCube.position
         const bindDoCubeRotateWhenMouseUp = this.doCubeRotateWhenMouseUp.bind(this)
         if (isMobile) {
-            this.domEl.addEventListener('touchend', bindDoCubeRotateWhenMouseUp, { once: true })
+            this.domEl.addEventListener('mouseup', bindDoCubeRotateWhenMouseUp, { once: true })
         } else {
             this.domEl.addEventListener('mouseup', bindDoCubeRotateWhenMouseUp, { once: true })
         }
@@ -160,8 +160,12 @@ class MouseEventManager {
         }
     }
     onTouchDown(e: TouchEvent) {
-        this.setMobileTouchPosition(e)
-        this.onMouseDown()
+        if (e.touches.length === 1) {
+            this.setMobileTouchPosition(e)
+            this.onMouseDown()
+        }else{
+            e.preventDefault()
+        }
     }
     setMobileTouchPosition(e: TouchEvent) {
         e.preventDefault();
@@ -181,7 +185,7 @@ class MouseEventManager {
         const bindSetMobileTouchDown = this.onTouchDown.bind(this)
         const bindSetMobileTouchPosition = this.setMobileTouchPosition.bind(this)
         if (isMobile) {
-            this.domEl.addEventListener('touchstart', bindSetMobileTouchDown, false);
+            this.domEl.addEventListener('touchstart',  bindSetMobileTouchDown , {capture:false,passive:false});
             this.domEl.addEventListener('touchend', bindStopControl, false);
             this.domEl.addEventListener('touchmove', bindSetMobileTouchPosition, false);
         } else {
