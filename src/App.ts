@@ -1,7 +1,7 @@
 import * as  TH from 'three'
 import { Vector2 } from 'three';
 import { ArcballControls } from 'three/examples/jsm/controls/ArcballControls';
-import { animateTime, BOX_WIDTH, cubeColors, insideCubeRatio, LEAST_VECTOR_LENGTH_TO_ROTATE } from './const'
+import { animateTime, BOX_WIDTH, cubeColors, insideCubeRatio, isMobile, LEAST_VECTOR_LENGTH_TO_ROTATE } from './const'
 type TDirection = "clockwise" | 'counterclockwise'
 interface IDoRotate {
     axis: TAxis,
@@ -155,13 +155,39 @@ class MouseEventManager {
             y: - (e.clientY / window.innerHeight) * 2 + 1,
         }
     }
+    setMobileTouchPosition(e: TouchEvent) {
+        e.preventDefault();
+        if (e.touches && e.touches.length > 0) {
+            const touch = e.touches[0]; // 取得第一個觸點
+            this.mouseXY = {
+                x: (touch.clientX / window.innerWidth) * 2 - 1,
+                y: -(touch.clientY / window.innerHeight) * 2 + 1,
+            };
+        }
+    }
+    setMobileTouchPositions(e: TouchEvent) {
+        if (e.touches && e.touches.length > 0) {
+            const touch = e.touches[0]; // 取得第一個觸點
+            this.mouseXY = {
+                x: (touch.clientX / window.innerWidth) * 2 - 1,
+                y: -(touch.clientY / window.innerHeight) * 2 + 1,
+            };
+        }
+    }
     initEventListener() {
         const bindDown = this.onMouseDown.bind(this)
         const bindStopControl = this.stopControl.bind(this)
         const bindSetMousePosition = this.setMousePosition.bind(this)
-        this.domEl.addEventListener('mousedown', bindDown, false);
-        this.domEl.addEventListener('mouseup', bindStopControl, false)
-        this.domEl.addEventListener('mousemove', bindSetMousePosition, false)
+        const bindSetMobileTouchPosition = this.setMobileTouchPosition.bind(this)
+        if (isMobile()) {
+            this.domEl.addEventListener('touchstart', bindDown, false);
+            this.domEl.addEventListener('touchend', bindStopControl, false);
+            this.domEl.addEventListener('touchmove', bindSetMobileTouchPosition, false);
+        } else {
+            this.domEl.addEventListener('mousedown', bindDown, false);
+            this.domEl.addEventListener('mouseup', bindStopControl, false)
+            this.domEl.addEventListener('mousemove', bindSetMousePosition, false)
+        }
     }
 }
 class Cube {
