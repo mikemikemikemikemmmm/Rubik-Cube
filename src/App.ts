@@ -414,10 +414,7 @@ class AxisLine {  // for test
         this.scene.add(mesh)
         return mesh
     }
-    setCharsLookAtCamara(cameraPosition: TH.Vector3, cameraRotation: TH.Euler) {
-        this.xChar.lookAt(cameraPosition);
-        this.yChar.lookAt(cameraPosition);
-        this.zChar.lookAt(cameraPosition);
+    setCharsLookAtCamara(cameraRotation: TH.Euler) {
         this.xChar.setRotationFromEuler(cameraRotation)
         this.yChar.setRotationFromEuler(cameraRotation)
         this.zChar.setRotationFromEuler(cameraRotation)
@@ -497,7 +494,7 @@ export class App {
             self.animate()
         });
         if (self.axisLine) {
-            self.axisLine.setCharsLookAtCamara(self.camera.position, self.camera.rotation)
+            self.axisLine.setCharsLookAtCamara(self.camera.rotation)
         }
         self.render()
         if (self.mixer) {
