@@ -15,3 +15,7 @@ export const isMobile = (() => {
     const md = new MobileDetect(window.navigator.userAgent);
     return md.mobile() !== null
 })()
+export const isDebugMode = (() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('debug') === 'true'
+})()

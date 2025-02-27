@@ -1,7 +1,10 @@
 import * as  TH from 'three'
 import { Vector2 } from 'three';
+import fontJson from './font.json'
+import { TextGeometry, TextGeometryParameters } from 'three/examples/jsm/geometries/TextGeometry'
 import { ArcballControls } from 'three/examples/jsm/controls/ArcballControls';
-import { animateTime, BOX_WIDTH, cubeColors, insideCubeRatio, isMobile, LEAST_VECTOR_LENGTH_TO_ROTATE } from './const'
+import { animateTime, BOX_WIDTH, cubeColors, insideCubeRatio, isDebugMode, isMobile, LEAST_VECTOR_LENGTH_TO_ROTATE } from './const'
+import { Font, FontLoader } from 'three/examples/jsm/loaders/FontLoader';
 type TDirection = "clockwise" | 'counterclockwise'
 interface IDoRotate {
     axis: TAxis,
@@ -49,6 +52,18 @@ class MouseEventManager {
         const objectInScene = this.app.scene.children
         return this.raycaster.intersectObjects(objectInScene, false);
     }
+    getFirstClickedCube(intersectObjects: TH.Intersection<TH.Object3D<TH.Event>>[]) {
+        if (intersectObjects.length === 0) {
+            return null
+        }
+        for (let index = 0; index < intersectObjects.length; index++) {
+            const item = intersectObjects[index];
+            if (item?.object.name === 'cube') {
+                return item.object
+            }
+        }
+        return null
+    }
     onMouseDown() {
         if (this.getIsAnimating()) {
             return
@@ -60,8 +75,8 @@ class MouseEventManager {
             this.startControl()
             return
         }
-        const clickedCube = intersectObjects[0]?.object
-        if (!intersectObjects[0] || !clickedCube) {
+        const clickedCube = this.getFirstClickedCube(intersectObjects)
+        if (!clickedCube) {
             return
         }
         const cubePositionType = Cube.getCubePositionType(clickedCube.position)
@@ -200,7 +215,7 @@ class Cube {
     constructor(
         private scene: THREE.Scene,
         private setMixer: (mixer: TH.AnimationMixer) => void,
-        private cleanMixer: () => void,
+        private cleanMixer: (object: TH.Group) => void,
         private setIsAnimating: (status: boolean) => void,
     ) {
         this.group = new TH.Group()
@@ -318,10 +333,10 @@ class Cube {
                 arr.push(c)
             })
             this.scene.add(...arr)
+            this.cleanMixer(cubeGroup)
             this.scene.remove(cubeGroup)
             mixer.removeEventListener('finished', whenFinished)
             this.setIsAnimating(false)
-            this.cleanMixer() //TODO
         }
         mixer.addEventListener('finished', whenFinished)
         action.setLoop(TH.LoopOnce, 1)
@@ -362,11 +377,51 @@ class AxisLine {  // for test
     xLine: TH.Line
     yLine: TH.Line
     zLine: TH.Line
+    xChar: TH.Mesh<TextGeometry, TH.MeshBasicMaterial>
+    yChar: TH.Mesh<TextGeometry, TH.MeshBasicMaterial>
+    zChar: TH.Mesh<TextGeometry, TH.MeshBasicMaterial>
     constructor(
-        private scene: TH.Scene,) {
+        private scene: TH.Scene) {
+        const fontConfig: TextGeometryParameters = {
+            font: new Font(fontJson),
+            size: 1,
+            height: 0.1
+        }
+        this.xChar = this.createChar('x', fontConfig)
+        this.yChar = this.createChar('y', fontConfig)
+        this.zChar = this.createChar('z', fontConfig)
         this.xLine = this.createLine('x')
         this.yLine = this.createLine('y')
         this.zLine = this.createLine('z')
+    }
+    createChar(char: 'x' | 'y' | 'z', fontConfig: TextGeometryParameters) {
+        const color = (() => {
+            if (char === 'x') {
+                return 0x00ff00
+            } else if (char === 'y') {
+                return 0xff0000
+            } else {
+                return 0x0000ff
+            }
+        })()
+        const textGeometry = new TextGeometry(char, fontConfig)
+        textGeometry.center()
+        const material = new TH.MeshBasicMaterial({ color });
+        const mesh = new TH.Mesh(textGeometry, material);
+        mesh.position.x = char === 'x' ? 5 : 0
+        mesh.position.y = char === 'y' ? 5 : 0
+        mesh.position.z = char === 'z' ? 5 : 0
+        this.scene.add(mesh)
+        return mesh
+    }
+    setCharsLookAtCamara(cameraPosition: TH.Vector3, cameraRotation: TH.Euler) {
+        this.xChar.lookAt(cameraPosition);
+        this.yChar.lookAt(cameraPosition);
+        this.zChar.lookAt(cameraPosition);
+        this.xChar.setRotationFromEuler(cameraRotation)
+        this.yChar.setRotationFromEuler(cameraRotation)
+        this.zChar.setRotationFromEuler(cameraRotation)
+
     }
     createLine(axis: TAxis) {
         const points = []
@@ -387,7 +442,7 @@ class AxisLine {  // for test
                 break;
         }
         const geometry = new TH.BufferGeometry().setFromPoints(points)
-        const material = new TH.LineBasicMaterial({ linewidth: 1, color,opacity:0 });
+        const material = new TH.LineBasicMaterial({ linewidth: 1, color, opacity: 0 });
         const line = new TH.Line(geometry, material)
         this.scene.add(line)
         return line
@@ -412,7 +467,7 @@ export class App {
         this.appendDOM(this.renderer.domElement)
         this.mouseEventManager = this.setInitMouseEventManager()
         this.cube = this.setInitCube()
-        // this.axisLine = new AxisLine(this.scene)
+        this.axisLine = isDebugMode ? new AxisLine(this.scene) : undefined
         this.animate()
     }
     setInitMouseEventManager() {
@@ -423,7 +478,12 @@ export class App {
     setMixer(mixer: TH.AnimationMixer) {
         this.mixer = mixer
     }
-    cleanMixer() {
+    cleanMixer(object: TH.Object3D) {
+        if (!this.mixer) {
+            return
+        }
+        this.mixer.stopAllAction()
+        this.mixer.uncacheRoot(object)
     }
     setIsAnimating(status: boolean) {
         this.isAnimating = status
@@ -436,6 +496,9 @@ export class App {
         requestAnimationFrame(() => {
             self.animate()
         });
+        if (self.axisLine) {
+            self.axisLine.setCharsLookAtCamara(self.camera.position, self.camera.rotation)
+        }
         self.render()
         if (self.mixer) {
             self.mixer.update(self.clock.getDelta())
